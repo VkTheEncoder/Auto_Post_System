@@ -1,7 +1,10 @@
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 import config
 
-client = AsyncIOMotorClient(config.MONGO_URI)
+# Use certifi to provide the required SSL certificates for Linux
+client = AsyncIOMotorClient(config.MONGO_URI, tlsCAFile=certifi.where())
+
 db = client['auto_post_system_db']
 posts_col = db['posts']
 
@@ -11,12 +14,10 @@ async def add_post(name, wp_post_id, pattern, tg_template, image_file_id):
         "wp_post_id": wp_post_id,
         "pattern": pattern,
         "tg_template": tg_template,
-        "image_file_id": image_file_id  # <--- NEW: Saves the image ID
+        "image_file_id": image_file_id
     })
 
 async def get_post_by_name(filename):
-    # Simplistic search: look for the donghua name inside the filename
-    # e.g., if filename is "Renegade Immortal Ep 23", it finds "renegade immortal"
     cursor = posts_col.find()
     matches = []
     async for post in cursor:
