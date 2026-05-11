@@ -22,27 +22,32 @@ async def update_wp_post(post_id, new_content):
 
 async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
     post_data = await get_wp_post(post_id)
-    
     content = post_data.get("content", {}).get("raw", "") 
     
     if not content:
-        print("Error: Could not fetch WP Content. Double check your WP_USER and WP_APP_PASS in config.py!")
+        print("Error: Could not fetch WP Content.")
         return
 
     if pattern == "D2":
         new_block = D2_BLOCK.replace("{EPISODE_NUM}", str(episode_num)).replace("{LINK_1080}", link)
-        # THE FIX: Strip hidden spaces and enforce strict double newlines for Gutenberg
-        content = content.strip() + "\n\n" + new_block.strip() + "\n\n"
+        content = content.strip() + "\n\n" + new_block + "\n\n"
         
     elif pattern == "D1":
         if is_4k:
-            target = f"EPISODE {episode_num}"
-            if target in content:
-                content = content.replace(f"href=\"{{LINK_4K}}\"", f"href=\"{link}\"")
+            # Safely find the specific episode and inject the href into the empty 4K button
+            ep_marker = f"EPISODE {episode_num}</h3>"
+            if ep_marker in content:
+                parts = content.split(ep_marker, 1)
+                parts[1] = parts[1].replace(
+                    '<a class="wp-block-button__link wp-element-button">4K Download</a>',
+                    f'<a class="wp-block-button__link wp-element-button" href="{link}">4K Download</a>',
+                    1
+                )
+                content = parts[0] + ep_marker + parts[1]
         else:
+            # Initial 1080p post creates the block
             new_block = D1_BLOCK.replace("{EPISODE_NUM}", str(episode_num)).replace("{LINK_1080}", link)
-            # THE FIX: Strip hidden spaces and enforce strict double newlines for Gutenberg
-            content = content.strip() + "\n\n" + new_block.strip() + "\n\n"
+            content = content.strip() + "\n\n" + new_block + "\n\n"
 
     await update_wp_post(post_id, content)
     print(f"✅ Successfully updated WordPress Post {post_id} with Episode {episode_num}")
