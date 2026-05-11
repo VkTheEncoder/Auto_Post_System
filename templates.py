@@ -36,10 +36,8 @@ D2_BLOCK = """<!-- wp:columns -->
 <!-- /wp:columns -->"""
 
 
-TELEGRAM_4K_MSG = """
-{DONGHUA_NAME} 4K (Hardsub) quality Added ✅
+TELEGRAM_4K_MSG = """🔰 <b>{DONGHUA_NAME} 4K Quality Added</b> ✅
 
-Size :- {FILE_SIZE} MB 💀 
+<blockquote>Size :- {FILE_SIZE} 💀</blockquote>
 
-Now Enjoy Highest Quality 😌🔥
-"""
+<b>Now Enjoy Highest Quality</b> 😌💯"""
