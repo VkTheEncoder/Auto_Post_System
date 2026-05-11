@@ -1,21 +1,21 @@
-# These are simplified Gutenberg HTML blocks. You may need to copy the exact HTML 
-# from your WordPress text editor for your specific button styling.
+# D1 Pattern (1080p + 4K)
 D1_BLOCK = """
-<div class="wp-block-group">
-    <p><strong>EPISODE {EPISODE_NUM}</strong></p>
-    <div class="wp-block-buttons">
-        <div class="wp-block-button"><a class="wp-block-button__link" href="{LINK_1080}">1080p Download</a></div>
-        <div class="wp-block-button"><a class="wp-block-button__link" href="{LINK_4K}">4K Download</a></div>
-    </div>
+<div class="wp-block-columns"><div class="wp-block-column is-vertically-aligned-center"><h3 class="wp-block-heading alignwide has-text-align-center">EPISODE {EPISODE_NUM}</h3>
+</div>
+<div class="wp-block-column"><div class="wp-block-buttons alignwide"><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="{LINK_1080}" rel="nofollow">1080p Download</a></div>
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="{LINK_4K}" rel="nofollow">4K Download</a></div>
+</div>
+</div>
 </div>
 """
 
+# D2 Pattern (1080p Only)
 D2_BLOCK = """
-<div class="wp-block-group">
-    <p><strong>EPISODE {EPISODE_NUM}</strong></p>
-    <div class="wp-block-buttons">
-        <div class="wp-block-button"><a class="wp-block-button__link" href="{LINK_1080}">Download</a></div>
-    </div>
+<div class="wp-block-columns"><div class="wp-block-column is-vertically-aligned-center"><h3 class="wp-block-heading alignwide has-text-align-center">EPISODE {EPISODE_NUM}</h3>
+</div>
+<div class="wp-block-column"><div class="wp-block-buttons alignwide"><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="{LINK_1080}"> Download</a></div>
+</div>
+</div>
 </div>
 """
 
