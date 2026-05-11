@@ -51,7 +51,13 @@ async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = update.message.video or update.message.document
     file_name = file.file_name
-    file_size_mb = round(file.file_size / (1024 * 1024), 2)
+    
+    # EXACT FIX: Automatically format as MB or GB properly!
+    raw_mb = file.file_size / (1024 * 1024)
+    if raw_mb >= 1024:
+        file_size_str = f"{round(raw_mb / 1024, 2)} GB"
+    else:
+        file_size_str = f"{round(raw_mb, 2)} MB"
 
     matches = await db.get_post_by_name(file_name)
     
@@ -68,7 +74,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pending_files[file_name] = {
         "post_data": post_data,
         "file_name": file_name,
-        "size_mb": file_size_mb,
+        "size_str": file_size_str,
         "user_chat_id": update.message.chat_id
     }
     await update.message.reply_text(f"File forwarded to sharing bot. Waiting for link for {file_name}...")
