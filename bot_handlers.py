@@ -75,6 +75,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"File forwarded to sharing bot. Waiting for link for {file_name}...")
 
 async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"DEBUG: Received a message from {update.message.from_user.username}: {update.message.text}")
     if update.message.from_user.username == config.FILE_BOT_USERNAME:
         msg_text = update.message.text
         
