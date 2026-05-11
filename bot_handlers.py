@@ -12,11 +12,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bot is alive and ready for automation.")
 
 async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("⚠️ Please attach the banner image and put the /addpost command in the caption!")
+    # THE FIX: Safely grab the message whether it is new, edited, or a channel post
+    message = update.message or update.edited_message or update.channel_post
+    
+    # If the message is completely invalid, exit safely without crashing
+    if not message:
         return
 
-    caption_html = update.message.caption_html or update.message.caption
+    # Now use our safe 'message' variable instead of 'update.message'
+    if not message.photo:
+        await message.reply_text("⚠️ Please attach the banner image and put the /addpost command in the caption!")
+        return
+
+    caption_html = message.caption_html or message.caption
     
     try:
         parts = caption_html.split('|', 4)
@@ -25,12 +33,12 @@ async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pattern = re.sub(r'<[^>]+>', '', parts[3]).strip()
         tg_template = parts[4].strip() 
         
-        image_file_id = update.message.photo[-1].file_id 
+        image_file_id = message.photo[-1].file_id 
         
         await db.add_post(name, wp_id, pattern, tg_template, image_file_id)
-        await update.message.reply_text(f"✅ Successfully saved {name} (with styling) into the database.")
+        await message.reply_text(f"✅ Successfully saved {name} (with styling) into the database.")
     except Exception as e:
-        await update.message.reply_text(f"Format error: {e}")
+        await message.reply_text(f"Format error: {e}")
 
 async def availablepost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = await db.get_all_posts()
