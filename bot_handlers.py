@@ -112,8 +112,6 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             link = re.search(r'(https://t.me/[^\s]+)', msg_text).group(1)
             
             # Since the file-bot replies, we need a way to match the link to the file.
-            # Usually, file bots quote the original message or send the file name. 
-            # *Assuming the file bot reply contains the original file name*:
             for fname, data in list(pending_files.items()):
                 # Logic to determine episode number and if it's 4K
                 ep_match = re.search(r'[Ee]p?-?(\d+)', fname)
@@ -131,16 +129,23 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # 2. Update Telegram Channel
                 if is_4k and data['post_data']['pattern'] == "D1":
-                    # Send specific 4K message
+                    # 4K updates (based on your screenshot) are text-only replies
                     tg_msg = TELEGRAM_4K_MSG.format(
                         DONGHUA_NAME=data['post_data']['name'].title(),
                         FILE_SIZE=f"{data['size_mb']} MB"
                     )
                     await context.bot.send_message(chat_id=config.CHANNEL_USERNAME, text=tg_msg)
                 elif not is_4k:
-                    # Standard episode post
+                    # Standard episode post WITH the image!
                     tg_msg = data['post_data']['tg_template'].replace("{EPISODE_NUM}", ep_num).replace("{LINK}", link)
-                    await context.bot.send_message(chat_id=config.CHANNEL_USERNAME, text=tg_msg)
+                    image_id = data['post_data'].get('image_file_id')
+                    
+                    if image_id:
+                        # Send the image with the text as the caption
+                        await context.bot.send_photo(chat_id=config.CHANNEL_USERNAME, photo=image_id, caption=tg_msg)
+                    else:
+                        # Fallback just in case an image wasn't saved
+                        await context.bot.send_message(chat_id=config.CHANNEL_USERNAME, text=tg_msg)
                 
                 await context.bot.send_message(chat_id=data['user_chat_id'], text=f"✅ Automation complete for {fname}!")
                 del pending_files[fname]
