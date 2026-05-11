@@ -16,17 +16,14 @@ async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Please attach the banner image and put the /addpost command in the caption!")
         return
 
-    # THE FIX: Grab the HTML formatted text to save your styles!
     caption_html = update.message.caption_html or update.message.caption
     
     try:
         parts = caption_html.split('|', 4)
-        
-        # Clean HTML tags off the settings, but leave them on the Template!
         name = re.sub(r'<[^>]+>', '', parts[1]).strip()
         wp_id = int(re.sub(r'<[^>]+>', '', parts[2]).strip())
         pattern = re.sub(r'<[^>]+>', '', parts[3]).strip()
-        tg_template = parts[4].strip() # Styles kept safely here!
+        tg_template = parts[4].strip() 
         
         image_file_id = update.message.photo[-1].file_id 
         
@@ -99,11 +96,11 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     is_4k=is_4k
                 )
                 
-                # THE FIX: parse_mode='HTML' added below
                 if is_4k and data['post_data']['pattern'] == "D1":
+                    # THE FIX IS APPLIED HERE:
                     tg_msg = TELEGRAM_4K_MSG.format(
                         DONGHUA_NAME=data['post_data']['name'].title(),
-                        FILE_SIZE=f"{data['size_mb']} MB"
+                        FILE_SIZE=data['size_str']
                     )
                     await context.bot.send_message(chat_id=config.CHANNEL_USERNAME, text=tg_msg, parse_mode='HTML')
                 elif not is_4k:
