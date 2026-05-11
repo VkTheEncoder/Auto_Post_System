@@ -5,12 +5,13 @@ client = AsyncIOMotorClient(config.MONGO_URI)
 db = client['auto_post_system_db']
 posts_col = db['posts']
 
-async def add_post(name, wp_post_id, pattern, tg_template):
+async def add_post(name, wp_post_id, pattern, tg_template, image_file_id):
     await posts_col.insert_one({
         "name": name.lower(),
         "wp_post_id": wp_post_id,
         "pattern": pattern,
-        "tg_template": tg_template
+        "tg_template": tg_template,
+        "image_file_id": image_file_id  # <--- NEW: Saves the image ID
     })
 
 async def get_post_by_name(filename):
