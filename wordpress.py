@@ -1,6 +1,8 @@
 import aiohttp
 import config
 from templates import D1_BLOCK, D2_BLOCK
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 async def get_wp_post(post_id):
     auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
@@ -13,13 +15,21 @@ async def get_wp_post(post_id):
 
 async def update_wp_post(post_id, new_content):
     auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
-    data = {"content": new_content, "status": "publish"}
+
+    current_time = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%dT%H:%M:%S")
+
+    data = {
+        "content": new_content,
+        "status": "publish",
+        "date": current_time
+    }
+
     async with aiohttp.ClientSession() as session:
         async with session.post(f"{config.WP_URL}/posts/{post_id}", json=data, auth=auth) as resp:
             if resp.status not in [200, 201]:
                 print(f"WP POST Error: {resp.status} - {await resp.text()}")
             return await resp.json()
-
+            
 async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
     post_data = await get_wp_post(post_id)
     content = post_data.get("content", {}).get("raw", "")
