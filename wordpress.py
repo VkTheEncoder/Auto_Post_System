@@ -23,16 +23,17 @@ async def update_wp_post(post_id, new_content):
 async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
     post_data = await get_wp_post(post_id)
     
-    # Grab the raw content block
     content = post_data.get("content", {}).get("raw", "") 
     
     if not content:
-        print("Error: Could not fetch WP Content. Check your WP_APP_PASS in config.")
+        print("Error: Could not fetch WP Content. Double check your WP_USER and WP_APP_PASS in config.py!")
         return
 
     if pattern == "D2":
         new_block = D2_BLOCK.replace("{EPISODE_NUM}", str(episode_num)).replace("{LINK_1080}", link)
-        content += "\n" + new_block
+        # THE FIX: Strip hidden spaces and enforce strict double newlines for Gutenberg
+        content = content.strip() + "\n\n" + new_block.strip() + "\n\n"
+        
     elif pattern == "D1":
         if is_4k:
             target = f"EPISODE {episode_num}"
@@ -40,7 +41,8 @@ async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
                 content = content.replace(f"href=\"{{LINK_4K}}\"", f"href=\"{link}\"")
         else:
             new_block = D1_BLOCK.replace("{EPISODE_NUM}", str(episode_num)).replace("{LINK_1080}", link)
-            content += "\n" + new_block
+            # THE FIX: Strip hidden spaces and enforce strict double newlines for Gutenberg
+            content = content.strip() + "\n\n" + new_block.strip() + "\n\n"
 
     await update_wp_post(post_id, content)
     print(f"✅ Successfully updated WordPress Post {post_id} with Episode {episode_num}")
