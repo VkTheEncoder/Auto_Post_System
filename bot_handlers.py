@@ -13,20 +13,52 @@ pending_files = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bot is alive and ready for automation.")
 
+# 1. Replace your existing addpost function with this one:
 async def addpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Usage: /addpost | Donghua Name | WP_POST_ID | D1/D2 | Telegram Template...
-    # For simplicity, split by a delimiter like '|'
+    # Check if the user actually attached a photo
+    if not update.message.photo:
+        await update.message.reply_text("⚠️ Please attach the banner image and put the /addpost command in the caption!")
+        return
+
+    # Grab the text from the caption instead of a standard text message
+    caption = update.message.caption
+    
     try:
-        parts = update.message.text.split('|')
+        parts = caption.split('|')
         name = parts[1].strip()
         wp_id = int(parts[2].strip())
         pattern = parts[3].strip()
         tg_template = parts[4].strip()
         
-        await db.add_post(name, wp_id, pattern, tg_template)
-        await update.message.reply_text(f"Successfully saved {name} into database.")
+        # Telegram sends multiple sizes of the photo. [-1] gets the highest quality one.
+        image_file_id = update.message.photo[-1].file_id 
+        
+        await db.add_post(name, wp_id, pattern, tg_template, image_file_id)
+        await update.message.reply_text(f"✅ Successfully saved {name} and its banner image into the database.")
     except Exception as e:
-        await update.message.reply_text("Format error. Use: /addpost | Name | WP_ID | D1 | Tg_Template")
+        await update.message.reply_text("Format error. Make sure to use | separators in the caption.")
+
+
+# 2. Scroll down inside handle_bot_reply and replace the "Update Telegram Channel" section:
+                # 2. Update Telegram Channel
+                if is_4k and data['post_data']['pattern'] == "D1":
+                    # 4K updates (based on your screenshot) are text-only replies
+                    tg_msg = TELEGRAM_4K_MSG.format(
+                        DONGHUA_NAME=data['post_data']['name'].title(),
+                        FILE_SIZE=f"{data['size_mb']} MB"
+                    )
+                    await context.bot.send_message(chat_id=config.CHANNEL_USERNAME, text=tg_msg)
+                elif not is_4k:
+                    # Standard episode post WITH the image!
+                    tg_msg = data['post_data']['tg_template'].replace("{EPISODE_NUM}", ep_num).replace("{LINK}", link)
+                    image_id = data['post_data'].get('image_file_id')
+                    
+                    if image_id:
+                        # Send the image with the text as the caption
+                        await context.bot.send_photo(chat_id=config.CHANNEL_USERNAME, photo=image_id, caption=tg_msg)
+                    else:
+                        # Fallback just in case an image wasn't saved
+                        await context.bot.send_message(chat_id=config.CHANNEL_USERNAME, text=tg_msg)
 
 async def availablepost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     posts = await db.get_all_posts()
