@@ -1,3 +1,13 @@
+import pytz
+import apscheduler.util
+
+# --- THE TIMEZONE FIX (Must be before telegram imports) ---
+def patched_get_localzone():
+    return pytz.utc
+
+apscheduler.util.get_localzone = patched_get_localzone
+# ----------------------------------------------------------
+
 import logging
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import config
