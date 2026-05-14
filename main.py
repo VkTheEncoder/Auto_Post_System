@@ -1,19 +1,16 @@
-import pytz
-import apscheduler.util
-
-# --- THE TIMEZONE FIX (Must be before telegram imports) ---
-def patched_get_localzone():
-    return pytz.utc
-
-apscheduler.util.get_localzone = patched_get_localzone
-# ----------------------------------------------------------
+import os
+import time
+# 100% FOOLPROOF TIMEZONE FIX: Force system to UTC before Telegram even loads
+os.environ['TZ'] = 'UTC'
+if hasattr(time, 'tzset'):
+    time.tzset()
 
 import logging
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import config
 from bot_handlers import start, addpost, availablepost, delpost, handle_video, handle_bot_reply
 
-# Enable logging to see errors in the terminal
+# Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
@@ -22,15 +19,13 @@ logger = logging.getLogger(__name__)
 def main():
     app = Application.builder().token(config.BOT_TOKEN).build()
 
-    # 1. Standard text commands
+    # Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("availablepost", availablepost))
     app.add_handler(CommandHandler("delpost", delpost))
     
-    # 2. THE FIX: This forces the bot to listen for /addpost in BOTH text and photo captions
     app.add_handler(MessageHandler(filters.Regex(r'^/addpost') | filters.CaptionRegex(r'^/addpost'), addpost))
     
-    # 3. File and reply handlers
     app.add_handler(MessageHandler(filters.VIDEO | filters.Document.ALL, handle_video))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_bot_reply))
 
