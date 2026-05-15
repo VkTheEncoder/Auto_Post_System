@@ -175,7 +175,10 @@ async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await reply_clean(update.message, "⛔ <b>Access Denied</b>\n\nOnly admin can use this command.")
+        await reply_clean(
+            update.message,
+            "⛔ <b>Access Denied</b>\n\nOnly admin can use this command."
+        )
         return
 
     uptime = datetime.now(ZoneInfo("Asia/Kolkata")) - BOT_STARTED_AT
@@ -185,6 +188,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         queue_text = "No pending files."
     else:
         lines = []
+
         for idx, (fname, data) in enumerate(pending_files.items(), start=1):
             created_at = data.get("created_at", time.time())
             waiting_minutes = int((time.time() - created_at) // 60)
@@ -196,18 +200,15 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         queue_text = "\n".join(lines)
 
-    status_message_ids = []
-
-    msg1 = await reply_clean(
-        message,
-        f"📥 <b>File Received</b>\n\n"
-        f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
-        f"📦 <b>Size:</b> {escape(file_size_str)}\n"
-        f"🎬 <b>Matched Post:</b> {escape(post_data['name'].title())}\n\n"
-        f"🔁 <b>Status:</b> Forwarding to sharing bot..."
+    await reply_clean(
+        update.message,
+        f"📊 <b>Bot Status</b>\n\n"
+        f"🟢 <b>State:</b> Running\n"
+        f"⏱️ <b>Uptime:</b> {uptime_minutes} min\n"
+        f"🕒 <b>IST Time:</b> {format_time_ist()}\n"
+        f"📦 <b>Pending Queue:</b> {len(pending_files)}\n\n"
+        f"{queue_text}"
     )
-
-    status_message_ids.append(msg1.message_id)
 
 
 async def clearqueue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -411,7 +412,7 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
         f"🌐 <b>Status:</b> Updating post content..."
     )
 
-status_message_ids.append(msg3.message_id)
+    status_message_ids.append(msg3.message_id)
 
     success = await wp.add_episode_to_wp(
         post_id=post_data["wp_post_id"],
@@ -515,6 +516,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # If sharing bot sends link inside caption/document message, process it here
     if sender_username == get_file_bot_username():
         text_or_caption = message.text or message.caption or ""
+
         if re.search(r'((?:https?://)?(?:t\.me|telegram\.me)/[^\s<]+)', text_or_caption):
             await handle_bot_reply(update, context)
             return
@@ -554,8 +556,9 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     post_data = matches[0]
+    status_message_ids = []
 
-    await reply_clean(
+    msg1 = await reply_clean(
         message,
         f"📥 <b>File Received</b>\n\n"
         f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
@@ -563,6 +566,8 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎬 <b>Matched Post:</b> {escape(post_data['name'].title())}\n\n"
         f"🔁 <b>Status:</b> Forwarding to sharing bot..."
     )
+
+    status_message_ids.append(msg1.message_id)
 
     try:
         await message.forward(chat_id=f"@{config.FILE_BOT_USERNAME}")
@@ -574,6 +579,8 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
             f"⚠️ <b>Error:</b> <code>{escape(str(e))}</code>"
         )
+
+        await delete_status_messages(context, message.chat_id, status_message_ids)
         return
 
     pending_files[file_name] = {
@@ -597,7 +604,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"The WordPress post will update automatically once the link is received."
     )
 
-pending_files[file_name]["status_message_ids"].append(msg2.message_id)
+    pending_files[file_name]["status_message_ids"].append(msg2.message_id)
 
 async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
