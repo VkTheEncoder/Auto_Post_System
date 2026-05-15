@@ -77,7 +77,7 @@ def is_admin(update: Update):
 
 
 async def send_clean(context, chat_id, text):
-    await context.bot.send_message(
+    return await context.bot.send_message(
         chat_id=chat_id,
         text=text,
         parse_mode="HTML",
@@ -86,12 +86,11 @@ async def send_clean(context, chat_id, text):
 
 
 async def reply_clean(message, text):
-    await message.reply_text(
+    return await message.reply_text(
         text,
         parse_mode="HTML",
         disable_web_page_preview=True
     )
-
 
 def clean_file_name(name):
     return escape(str(name or "Unknown"))
@@ -99,6 +98,24 @@ def clean_file_name(name):
 
 def format_time_ist():
     return datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M %p")
+
+async def delete_status_messages(context, chat_id, message_ids):
+    """
+    Deletes temporary bot status messages.
+    Final success/error message will stay.
+    """
+
+    if not message_ids:
+        return
+
+    for message_id in message_ids:
+        try:
+            await context.bot.delete_message(
+                chat_id=chat_id,
+                message_id=message_id
+            )
+        except Exception as e:
+            print(f"Could not delete message {message_id}: {e}")
 
 
 async def expire_pending_file(file_name, context):
@@ -121,6 +138,11 @@ async def expire_pending_file(file_name, context):
             f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
             f"⚠️ <b>Status:</b> Sharing bot did not return the link within {timeout_seconds // 60} minutes.\n\n"
             f"Use <code>/status</code> to check active queue or send the file again."
+        )
+        await delete_status_messages(
+            context,
+            data["user_chat_id"],
+            data.get("status_message_ids", [])
         )
 
     except asyncio.CancelledError:
@@ -174,15 +196,18 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         queue_text = "\n".join(lines)
 
-    await reply_clean(
-        update.message,
-        f"📊 <b>Bot Status</b>\n\n"
-        f"🟢 <b>State:</b> Running\n"
-        f"⏱️ <b>Uptime:</b> {uptime_minutes} min\n"
-        f"🕒 <b>IST Time:</b> {format_time_ist()}\n"
-        f"📦 <b>Pending Queue:</b> {len(pending_files)}\n\n"
-        f"{queue_text}"
+    status_message_ids = []
+
+    msg1 = await reply_clean(
+        message,
+        f"📥 <b>File Received</b>\n\n"
+        f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
+        f"📦 <b>Size:</b> {escape(file_size_str)}\n"
+        f"🎬 <b>Matched Post:</b> {escape(post_data['name'].title())}\n\n"
+        f"🔁 <b>Status:</b> Forwarding to sharing bot..."
     )
+
+    status_message_ids.append(msg1.message_id)
 
 
 async def clearqueue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -356,9 +381,9 @@ async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-async def process_final_link(update, context, post_data, file_name, link, file_size_str=None, user_chat_id=None):
+async def process_final_link(update, context, post_data, file_name, link, file_size_str=None, user_chat_id=None, status_message_ids=None):
     chat_id = user_chat_id or update.effective_chat.id
-
+    status_message_ids = status_message_ids or []
     episode_num = extract_episode_number(file_name)
 
     if not episode_num:
@@ -370,12 +395,13 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
             f"Use filename format like:\n"
             f"<code>against the god s2 07 4k.mp4</code>"
         )
+        await delete_status_messages(context, chat_id, status_message_ids)
         return False
 
     file_is_4k = is_4k_file(file_name)
     pattern = str(post_data.get("pattern", "")).strip().upper()
 
-    await send_clean(
+    msg3 = await send_clean(
         context,
         chat_id,
         f"🔧 <b>Updating WordPress</b>\n\n"
@@ -384,6 +410,8 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
         f"🧩 <b>Pattern:</b> {escape(pattern)}\n"
         f"🌐 <b>Status:</b> Updating post content..."
     )
+
+status_message_ids.append(msg3.message_id)
 
     success = await wp.add_episode_to_wp(
         post_id=post_data["wp_post_id"],
@@ -406,6 +434,7 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
             f"• Wrong pattern selected\n"
             f"• WordPress API rejected update"
         )
+        await delete_status_messages(context, chat_id, status_message_ids)
         return False
 
     channel_status = "Not required"
@@ -455,6 +484,7 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
             f"📣 <b>Channel:</b> Failed\n"
             f"⚠️ <b>Error:</b> <code>{escape(str(e))}</code>"
         )
+        await delete_status_messages(context, chat_id, status_message_ids)
         return False
 
     await send_clean(
@@ -468,6 +498,8 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
         f"📣 <b>Channel:</b> {escape(channel_status)}\n"
         f"🕒 <b>Time:</b> {format_time_ist()}"
     )
+
+    await delete_status_messages(context, chat_id, status_message_ids)
 
     return True
 
@@ -549,20 +581,23 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "file_name": file_name,
         "size_str": file_size_str,
         "user_chat_id": message.chat_id,
-        "created_at": time.time()
+        "created_at": time.time(),
+        "status_message_ids": status_message_ids
     }
 
     pending_files[file_name]["timeout_task"] = asyncio.create_task(
         expire_pending_file(file_name, context)
     )
 
-    await reply_clean(
+    msg2 = await reply_clean(
         message,
         f"⏳ <b>Waiting for Download Link</b>\n\n"
         f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
         f"🔗 <b>Status:</b> Sent to sharing bot\n\n"
         f"The WordPress post will update automatically once the link is received."
     )
+
+pending_files[file_name]["status_message_ids"].append(msg2.message_id)
 
 async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
@@ -632,7 +667,8 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_name=data["file_name"],
             link=link,
             file_size_str=data["size_str"],
-            user_chat_id=data["user_chat_id"]
+            user_chat_id=data["user_chat_id"],
+            status_message_ids=data.get("status_message_ids", [])
         )
 
         if success:
