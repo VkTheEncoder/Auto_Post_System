@@ -1,5 +1,5 @@
 
-ADMIN_IDS = [123456789]  # Replace with your Telegram numeric user ID
+ADMIN_IDS = [1423807625,1048110820,6520490787]  # Replace with your Telegram numeric user ID
 
 PENDING_TIMEOUT_SECONDS = 1800  # 30 minutes
 
