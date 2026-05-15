@@ -208,18 +208,29 @@ async def clearqueue_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def restart_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await reply_clean(update.message, "⛔ <b>Access Denied</b>\n\nOnly admin can restart the bot.")
+        await reply_clean(
+            update.message,
+            "⛔ <b>Access Denied</b>\n\nOnly admin can use this command."
+        )
         return
+
+    total = len(pending_files)
+
+    for data in pending_files.values():
+        task = data.get("timeout_task")
+        if task:
+            task.cancel()
+
+    pending_files.clear()
 
     await reply_clean(
         update.message,
-        "🔄 <b>Restarting Bot</b>\n\n"
-        "All pending tasks will be stopped.\n"
-        "The service will start again automatically in a few seconds."
+        f"🔄 <b>Bot Soft Restarted</b>\n\n"
+        f"🧹 <b>Cleared Queue:</b> {total} pending file(s)\n"
+        f"🟢 <b>Status:</b> Bot is still running\n"
+        f"🕒 <b>Time:</b> {format_time_ist()}\n\n"
+        f"You can send a fresh file now."
     )
-
-    await asyncio.sleep(1.5)
-    os._exit(1)
 
 def extract_episode_number(file_name):
     """
