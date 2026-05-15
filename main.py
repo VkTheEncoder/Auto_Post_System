@@ -19,6 +19,7 @@ from bot_handlers import (
     handle_bot_reply,
     restart_bot,
     status_command,
+    authorization_gate,
     clearqueue_command,
     myid_command,
 )
@@ -37,6 +38,7 @@ async def error_handler(update: object, context):
 
 def main():
     app = Application.builder().token(config.BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.ALL, authorization_gate), group=-1)
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid_command))
