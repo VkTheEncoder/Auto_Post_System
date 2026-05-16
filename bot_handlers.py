@@ -46,20 +46,29 @@ def is_allowed_user(update: Update):
 
 
 async def authorization_gate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.effective_message
+
+    if not message:
+        raise ApplicationHandlerStop
+
+    chat = update.effective_chat
+
+    # Never reply in channel/group. Silently ignore.
+    if chat and chat.type != "private":
+        raise ApplicationHandlerStop
+
+    # Private chat allowed users
     if is_allowed_user(update):
         return
 
-    message = update.effective_message
+    contact_username = getattr(config, "CONTACT_USERNAME", "@The_vK_3")
 
-    if message:
-        contact_username = getattr(config, "CONTACT_USERNAME", "@The_vK_3")
-
-        await message.reply_text(
-            f"🚫 <b>Access Denied!</b>\n"
-            f"You are not authorized to use this bot.\n\n"
-            f"📩 Contact {contact_username} for access!",
-            parse_mode="HTML"
-        )
+    await message.reply_text(
+        f"🚫 <b>Access Denied!</b>\n"
+        f"You are not authorized to use this bot.\n\n"
+        f"📩 Contact {contact_username} for access!",
+        parse_mode="HTML"
+    )
 
     raise ApplicationHandlerStop
 
