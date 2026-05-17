@@ -64,12 +64,11 @@ def main():
     )
 
     app.add_handler(
-        MessageHandler(
-            filters.ChatType.PRIVATE & (filters.TEXT | filters.CaptionRegex(r'.+')),
+          MessageHandler(
+            filters.TEXT | filters.CaptionRegex(r'.+'),
             handle_bot_reply
         )
-    )    
-
+    )
     app.add_error_handler(error_handler)
 
     print("Bot is running...")
