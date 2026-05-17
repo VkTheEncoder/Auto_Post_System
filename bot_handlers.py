@@ -53,8 +53,11 @@ async def authorization_gate(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     chat = update.effective_chat
 
-    # Never reply in channel/group. Silently ignore.
+    # Allow only your file sharing log channel silently
     if chat and chat.type != "private":
+        if is_file_log_chat(update):
+            return
+
         raise ApplicationHandlerStop
 
     # Private chat allowed users
@@ -75,6 +78,23 @@ async def authorization_gate(update: Update, context: ContextTypes.DEFAULT_TYPE)
 def get_file_bot_username():
     return normalize_username(config.FILE_BOT_USERNAME)
 
+def is_file_log_chat(update: Update):
+    chat = update.effective_chat
+
+    if not chat:
+        return False
+
+    allowed_ids = set(int(x) for x in getattr(config, "FILE_LOG_CHAT_IDS", []))
+
+    if chat.id in allowed_ids:
+        return True
+
+    allowed_username = normalize_username(getattr(config, "FILE_LOG_CHANNEL_USERNAME", ""))
+
+    if allowed_username and normalize_username(getattr(chat, "username", "")) == allowed_username:
+        return True
+
+    return False
 
 def get_admin_ids():
     return set(int(x) for x in getattr(config, "ADMIN_IDS", []))
@@ -616,7 +636,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pending_files[file_name]["status_message_ids"].append(msg2.message_id)
 
 async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
+    message = update.effective_message
 
     if not message:
         return
@@ -629,7 +649,7 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sender_username = normalize_username(message.from_user.username if message.from_user else "")
 
     # Case 1: Reply from Telegram file sharing bot
-    if sender_username == get_file_bot_username():
+    if sender_username == get_file_bot_username() or is_file_log_chat(update):
         link_match = re.search(r'((?:https?://)?(?:t\.me|telegram\.me)/[^\s<]+)', msg_text)
 
         if not link_match:
@@ -641,13 +661,14 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             link = "https://" + link
 
         if not pending_files:
-            await reply_clean(
-                message,
-                "⚠️ <b>Link Received, But Queue Is Empty</b>\n\n"
-                "No pending file was found. The old queue may have been cleared or the bot was restarted."
-            )
+            if update.effective_chat and update.effective_chat.type == "private":
+                await reply_clean(
+                    message,
+                    "⚠️ <b>Link Received, But Queue Is Empty</b>\n\n"
+                    "No pending file was found. The old queue may have been cleared or the bot was restarted."
+                )
             return
-
+        
         selected_fname = None
         lower_text = msg_text.lower()
 
@@ -662,12 +683,13 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             selected_fname = next(iter(pending_files))
 
         if not selected_fname:
-            await reply_clean(
-                message,
-                "⚠️ <b>Could Not Match Link to File</b>\n\n"
-                "Multiple files are pending, and the sharing bot response did not clearly match a filename.\n\n"
-                "Use <code>/status</code> and process one file at a time."
-            )
+            if update.effective_chat and update.effective_chat.type == "private":
+                await reply_clean(
+                    message,
+                    "⚠️ <b>Could Not Match Link to File</b>\n\n"
+                    "Multiple files are pending, and the sharing bot response did not clearly match a filename.\n\n"
+                    "Use <code>/status</code> and process one file at a time."
+                )
             return
 
         data = pending_files[selected_fname]
