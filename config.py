@@ -3,6 +3,8 @@ ADMIN_IDS = [1423807625,1048110820,6520490787]  # Replace with your Telegram num
 
 PENDING_TIMEOUT_SECONDS = 1800  # 30 minutes
 
+FILE_LOG_CHAT_IDS = [-1002631218069]
+
 BOT_TOKEN = "8512803170:AAFAwTIoe_FyNf2S9NHmTfKG46X_lGqcAAY"
 FILE_BOT_USERNAME = "file_sharing_bot03_bot" # No @ symbol
 CHANNEL_USERNAME = "@Facky_Hindi_Donghua"
