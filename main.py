@@ -1,5 +1,7 @@
 import os
 import time
+import threading
+from flask import Flask
 
 os.environ['TZ'] = 'UTC'
 if hasattr(time, 'tzset'):
@@ -35,8 +37,19 @@ logger = logging.getLogger(__name__)
 async def error_handler(update: object, context):
     logger.exception("Bot error occurred:", exc_info=context.error)
 
+web_app = Flask(__name__)
+
+@web_app.route("/")
+def health_check():
+    return "Auto Post Bot is running", 200
+
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
 
 def main():
+    threading.Thread(target=run_web_server, daemon=True).start()
     app = Application.builder().token(config.BOT_TOKEN).build()
     app.add_handler(MessageHandler(filters.ALL, authorization_gate), group=-1)
 
@@ -73,6 +86,7 @@ def main():
 
     print("Bot is running...")
     app.run_polling(drop_pending_updates=True)
+
 
 
 if __name__ == "__main__":
