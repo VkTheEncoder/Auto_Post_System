@@ -2,3 +2,4 @@ python-telegram-bot>=20.0
 motor
 aiohttp
 certifi
+flask
