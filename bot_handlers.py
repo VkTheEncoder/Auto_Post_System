@@ -19,6 +19,8 @@ pending_files = {}
 
 BOT_STARTED_AT = datetime.now(ZoneInfo("Asia/Kolkata"))
 
+def remove_video_extension(file_name):
+    return re.sub(r'\.(mp4|mkv|avi|mov)$', '', str(file_name), flags=re.IGNORECASE).strip()
 
 def normalize_username(username):
     return (username or "").replace("@", "").strip().lower()
@@ -672,10 +674,16 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         selected_fname = None
         lower_text = msg_text.lower()
 
-        for fname in pending_files.keys():
-            clean_fname = fname.lower().replace(".mp4", "").replace(".mkv", "").replace(".avi", "").strip()
+        for fname, data in pending_files.items():
+            clean_fname = remove_video_extension(fname).lower()
+            full_fname = fname.lower()
+            drive_text = data.get("drive_text", "").lower()
 
-            if clean_fname in lower_text or fname.lower() in lower_text:
+            if clean_fname in lower_text or full_fname in lower_text:
+                selected_fname = fname
+                break
+
+            if drive_text and clean_fname in drive_text and clean_fname in lower_text:
                 selected_fname = fname
                 break
 
@@ -715,6 +723,7 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Case 2: Manual Google Drive link message from you
+    # Case 2: Manual Google Drive link message from you
     drive_match = re.search(r'(https?://(?:drive\.google\.com|docs\.google\.com)/[^\s<]+)', msg_text)
 
     if drive_match:
@@ -729,13 +738,20 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message,
                 "❌ <b>Drive Link Found, But Filename Is Missing</b>\n\n"
                 "Send in this format:\n\n"
-                "<code>against the god s2 07 1080p.mp4 | https://drive.google.com/file/d/xxxxx/view</code>\n\n"
-                "For 4K:\n"
-                "<code>against the god s2 07 4k.mp4 | https://drive.google.com/file/d/xxxxx/view</code>"
+                "<code>Tales of Herding Gods E83 4K.mkv | https://drive.google.com/file/d/xxxxx/view</code>"
             )
             return
 
-        matches = await db.get_post_by_name(file_name)
+        try:
+            matches = await db.get_post_by_name(file_name)
+        except Exception as e:
+            await reply_clean(
+                message,
+                f"❌ <b>Database Connection Failed</b>\n\n"
+                f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n\n"
+                f"⚠️ <b>Error:</b> <code>{escape(str(e))[:500]}</code>"
+            )
+            return
 
         if len(matches) > 1:
             await reply_clean(
@@ -755,12 +771,70 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        await process_final_link(
-            update=update,
-            context=context,
-            post_data=matches[0],
-            file_name=file_name,
-            link=drive_link,
-            file_size_str="Drive Link",
-            user_chat_id=message.chat_id
+        post_data = matches[0]
+        clean_name = remove_video_extension(file_name)
+
+        file_sharing_text = f"{clean_name} :- {drive_link}"
+    
+        status_message_ids = []
+        
+        msg1 = await reply_clean(
+            message,
+            f"📨 <b>Drive Link Received</b>\n\n"
+            f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
+            f"🎬 <b>Matched Post:</b> {escape(post_data['name'].title())}\n\n"
+            f"🔁 <b>Status:</b> Sending Drive text to file sharing bot..."
         )
+
+        status_message_ids.append(msg1.message_id)
+
+        try:
+            sent_msg = await context.bot.send_message(
+                chat_id=f"@{config.FILE_BOT_USERNAME}",
+                text=file_sharing_text,
+                disable_web_page_preview=True
+            )
+
+            await context.bot.send_message(
+                chat_id=f"@{config.FILE_BOT_USERNAME}",
+                text="/link",
+                reply_to_message_id=sent_msg.message_id
+            )
+    
+        except Exception as e:
+            await reply_clean(
+                message,
+                f"❌ <b>File Sharing Bot Request Failed</b>\n\n"
+                f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
+                f"⚠️ <b>Error:</b> <code>{escape(str(e))}</code>"
+            )
+
+            await delete_status_messages(context, message.chat_id, status_message_ids)
+            return
+
+        pending_files[file_name] = {
+            "post_data": post_data,
+            "file_name": file_name,
+            "size_str": "Drive Link",
+            "user_chat_id": message.chat_id,
+            "created_at": time.time(),
+            "status_message_ids": status_message_ids,
+            "drive_mode": True,
+            "drive_text": file_sharing_text
+        }
+
+        pending_files[file_name]["timeout_task"] = asyncio.create_task(
+            expire_pending_file(file_name, context)
+        )
+
+        msg2 = await reply_clean(
+            message,
+            f"⏳ <b>Waiting for File Sharing Link</b>\n\n"
+            f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n"
+            f"🔗 <b>Status:</b> Drive link sent to file sharing bot\n\n"
+            f"WordPress will update after the generated file-sharing link is received."
+        )
+
+        pending_files[file_name]["status_message_ids"].append(msg2.message_id)
+
+        return
