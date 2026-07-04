@@ -7,28 +7,35 @@ from zoneinfo import ZoneInfo
 
 
 async def get_wp_post(post_id):
-    auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
+    # Manually encode the credentials
+    auth_string = f"{config.WP_USER}:{config.WP_APP_PASS}"
+    encoded_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Authorization": f"Basic {encoded_auth}"  # Force the auth header directly
     }
 
     async with aiohttp.ClientSession(headers=headers) as session:
-        async with session.get(f"{config.WP_URL}/posts/{post_id}?context=edit", auth=auth) as resp:
+        # Removed the auth=auth parameter here, as it's now forced in the headers
+        async with session.get(f"{config.WP_URL}/posts/{post_id}?context=edit") as resp:
             if resp.status != 200:
                 err_text = await resp.text()
-                # Return the exact HTTP status and OpenResty/WP response
                 return False, f"GET {resp.status}: {err_text[:250]}"
             return True, await resp.json()
 
 
 async def update_wp_post(post_id, new_content):
-    auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
+    auth_string = f"{config.WP_USER}:{config.WP_APP_PASS}"
+    encoded_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Authorization": f"Basic {encoded_auth}"
     }
 
     current_time = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%dT%H:%M:%S")
@@ -40,13 +47,11 @@ async def update_wp_post(post_id, new_content):
     }
 
     async with aiohttp.ClientSession(headers=headers) as session:
-        async with session.post(f"{config.WP_URL}/posts/{post_id}", json=data, auth=auth) as resp:
+        async with session.post(f"{config.WP_URL}/posts/{post_id}", json=data) as resp:
             if resp.status not in [200, 201]:
                 err_text = await resp.text()
-                # Return the exact HTTP status and OpenResty/WP response
                 return False, f"POST {resp.status}: {err_text[:250]}"
             return True, "Success"
-
 
 async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
     success, post_data = await get_wp_post(post_id)
