@@ -8,28 +8,23 @@ from zoneinfo import ZoneInfo
 
 async def get_wp_post(post_id):
     auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
-    
-    # Add strict headers to satisfy the OpenResty WAF
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
-    # Pass the headers into the ClientSession
     async with aiohttp.ClientSession(headers=headers) as session:
         async with session.get(f"{config.WP_URL}/posts/{post_id}?context=edit", auth=auth) as resp:
             if resp.status != 200:
-                print(f"WP GET Error: {resp.status} - {await resp.text()}")
-                return None
-
-            return await resp.json()
+                err_text = await resp.text()
+                # Return the exact HTTP status and OpenResty/WP response
+                return False, f"GET {resp.status}: {err_text[:250]}"
+            return True, await resp.json()
 
 
 async def update_wp_post(post_id, new_content):
     auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
-    
-    # Add strict headers here as well
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -46,13 +41,64 @@ async def update_wp_post(post_id, new_content):
 
     async with aiohttp.ClientSession(headers=headers) as session:
         async with session.post(f"{config.WP_URL}/posts/{post_id}", json=data, auth=auth) as resp:
-            response_text = await resp.text()
-
             if resp.status not in [200, 201]:
-                print(f"WP POST Error: {resp.status} - {response_text}")
-                return False
+                err_text = await resp.text()
+                # Return the exact HTTP status and OpenResty/WP response
+                return False, f"POST {resp.status}: {err_text[:250]}"
+            return True, "Success"
 
-            return True
+
+async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
+    success, post_data = await get_wp_post(post_id)
+    
+    if not success:
+        return False, post_data # Passes the exact GET error up the chain
+
+    content = post_data.get("content", {}).get("raw", "")
+
+    if not content:
+        return False, "Error: Missing 'raw' content. Check if your WP App Password has 'editor' permissions."
+
+    pattern = (pattern or "").strip().upper()
+    episode_num = str(episode_num).strip()
+
+    if is_4k:
+        if pattern != "D1":
+            return False, "Error: 4K update is only supported for D1 pattern."
+
+        block_position = find_episode_block(content, episode_num)
+
+        if not block_position:
+            return False, f"Error: Episode {episode_num} block not found."
+
+        start, end = block_position
+        old_block = content[start:end]
+
+        updated_block, count = update_4k_button_in_block(old_block, link)
+
+        if count == 0:
+            return False, f"Error: 4K Download button not found inside Episode {episode_num} block."
+
+        content = content[:start] + updated_block + content[end:]
+
+    else:
+        if pattern == "D2":
+            new_block = D2_BLOCK.replace("{EPISODE_NUM}", episode_num).replace("{LINK_1080}", link)
+            content = content.rstrip() + "\n\n" + new_block + "\n\n"
+
+        elif pattern == "D1":
+            new_block = D1_BLOCK.replace("{EPISODE_NUM}", episode_num).replace("{LINK_1080}", link)
+            content = content.rstrip() + "\n\n" + new_block + "\n\n"
+
+        else:
+            return False, f"Error: Unknown pattern '{pattern}'. Use D1 or D2."
+
+    success, update_msg = await update_wp_post(post_id, content)
+    
+    if not success:
+        return False, update_msg # Passes the exact POST error up the chain
+
+    return True, "Success"
 
 
 def find_episode_block(content, episode_num):
@@ -143,62 +189,3 @@ def update_4k_button_in_block(block_html, link):
 
     return updated_block, count
 
-
-async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
-    post_data = await get_wp_post(post_id)
-
-    if not post_data:
-        print("Error: Could not fetch WP post.")
-        return False
-
-    content = post_data.get("content", {}).get("raw", "")
-
-    if not content:
-        print("Error: Could not fetch raw Gutenberg content.")
-        return False
-
-    pattern = (pattern or "").strip().upper()
-    episode_num = str(episode_num).strip()
-
-    if is_4k:
-        if pattern != "D1":
-            print("Error: 4K update is only supported for D1 pattern.")
-            return False
-
-        block_position = find_episode_block(content, episode_num)
-
-        if not block_position:
-            print(f"Error: Episode {episode_num} block not found for 4K update.")
-            return False
-
-        start, end = block_position
-        old_block = content[start:end]
-
-        updated_block, count = update_4k_button_in_block(old_block, link)
-
-        if count == 0:
-            print(f"Error: 4K Download button not found inside Episode {episode_num} block.")
-            return False
-
-        content = content[:start] + updated_block + content[end:]
-
-    else:
-        if pattern == "D2":
-            new_block = D2_BLOCK.replace("{EPISODE_NUM}", episode_num).replace("{LINK_1080}", link)
-            content = content.rstrip() + "\n\n" + new_block + "\n\n"
-
-        elif pattern == "D1":
-            new_block = D1_BLOCK.replace("{EPISODE_NUM}", episode_num).replace("{LINK_1080}", link)
-            content = content.rstrip() + "\n\n" + new_block + "\n\n"
-
-        else:
-            print(f"Error: Unknown pattern '{pattern}'. Use D1 or D2.")
-            return False
-
-    success = await update_wp_post(post_id, content)
-
-    if success:
-        print(f"✅ Successfully updated WordPress Post {post_id} with Episode {episode_num}")
-        return True
-
-    return False
