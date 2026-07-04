@@ -445,7 +445,8 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
 
     status_message_ids.append(msg3.message_id)
 
-    success = await wp.add_episode_to_wp(
+    # Update this specific block inside process_final_link
+    success, error_reason = await wp.add_episode_to_wp(
         post_id=post_data["wp_post_id"],
         pattern=pattern,
         episode_num=episode_num,
@@ -460,11 +461,8 @@ async def process_final_link(update, context, post_data, file_name, link, file_s
             f"❌ <b>WordPress Update Failed</b>\n\n"
             f"🎬 <b>Episode:</b> {escape(episode_num)}\n"
             f"📄 <b>File:</b> <code>{clean_file_name(file_name)}</code>\n\n"
-            f"Possible reason:\n"
-            f"• Episode block not found\n"
-            f"• 4K button not found\n"
-            f"• Wrong pattern selected\n"
-            f"• WordPress API rejected update"
+            f"⚠️ <b>Actual API Error:</b>\n"
+            f"<code>{escape(error_reason)}</code>"
         )
         await delete_status_messages(context, chat_id, status_message_ids)
         return False
