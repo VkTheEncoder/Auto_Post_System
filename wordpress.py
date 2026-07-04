@@ -1,6 +1,7 @@
 import aiohttp
 import config
 import re
+import base64
 from templates import D1_BLOCK, D2_BLOCK
 from datetime import datetime
 from zoneinfo import ZoneInfo
