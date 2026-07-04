@@ -8,8 +8,16 @@ from zoneinfo import ZoneInfo
 
 async def get_wp_post(post_id):
     auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
+    
+    # Add strict headers to satisfy the OpenResty WAF
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
 
-    async with aiohttp.ClientSession() as session:
+    # Pass the headers into the ClientSession
+    async with aiohttp.ClientSession(headers=headers) as session:
         async with session.get(f"{config.WP_URL}/posts/{post_id}?context=edit", auth=auth) as resp:
             if resp.status != 200:
                 print(f"WP GET Error: {resp.status} - {await resp.text()}")
@@ -20,6 +28,13 @@ async def get_wp_post(post_id):
 
 async def update_wp_post(post_id, new_content):
     auth = aiohttp.BasicAuth(config.WP_USER, config.WP_APP_PASS)
+    
+    # Add strict headers here as well
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
 
     current_time = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -29,7 +44,7 @@ async def update_wp_post(post_id, new_content):
         "date": current_time
     }
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(headers=headers) as session:
         async with session.post(f"{config.WP_URL}/posts/{post_id}", json=data, auth=auth) as resp:
             response_text = await resp.text()
 
