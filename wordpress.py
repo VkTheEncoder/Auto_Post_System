@@ -1,43 +1,70 @@
 import aiohttp
 import config
 import re
-import base64
 from templates import D1_BLOCK, D2_BLOCK
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 
-async def get_wp_post(post_id):
-    # Manually encode the credentials
-    auth_string = f"{config.WP_USER}:{config.WP_APP_PASS}"
-    encoded_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+def wp_base_url():
+    return str(config.WP_URL).rstrip("/")
 
-    headers = {
+
+def wp_auth():
+    username = str(config.WP_USER).strip()
+
+    # WordPress app passwords are shown with spaces.
+    # Removing spaces is safe and avoids Render/env copy issues.
+    password = str(config.WP_APP_PASS).replace(" ", "").strip()
+
+    return aiohttp.BasicAuth(username, password)
+
+
+def wp_headers():
+    return {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Authorization": f"Basic {encoded_auth}"  # Force the auth header directly
+        "User-Agent": "AutoPostBot/1.0"
     }
 
-    async with aiohttp.ClientSession(headers=headers) as session:
-        # Removed the auth=auth parameter here, as it's now forced in the headers
-        async with session.get(f"{config.WP_URL}/posts/{post_id}?context=edit") as resp:
+
+async def get_wp_post(post_id):
+    url = f"{wp_base_url()}/posts/{post_id}?context=edit"
+
+    async with aiohttp.ClientSession(headers=wp_headers()) as session:
+        async with session.get(
+            url,
+            auth=wp_auth(),
+            allow_redirects=False
+        ) as resp:
+
+            text = await resp.text()
+
+            if resp.status in [301, 302, 307, 308]:
+                return False, f"Redirect error {resp.status}. Check WP_URL. URL used: {url}"
+
             if resp.status != 200:
-                err_text = await resp.text()
-                return False, f"GET {resp.status}: {err_text[:250]}"
-            return True, await resp.json()
+                return False, f"GET {resp.status}: {text[:500]}"
+
+            try:
+                data = await resp.json(content_type=None)
+            except Exception:
+                return False, f"GET returned non-JSON response: {text[:500]}"
+
+            content = data.get("content", {})
+
+            if "raw" not in content:
+                return False, (
+                    "Missing content.raw from WordPress API. "
+                    "This means WordPress did not treat this request as an authenticated editor/admin request. "
+                    "Check Render WP_USER/WP_APP_PASS, user role, and Authorization header."
+                )
+
+            return True, data
 
 
 async def update_wp_post(post_id, new_content):
-    auth_string = f"{config.WP_USER}:{config.WP_APP_PASS}"
-    encoded_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
-
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Authorization": f"Basic {encoded_auth}"
-    }
+    url = f"{wp_base_url()}/posts/{post_id}"
 
     current_time = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -47,30 +74,35 @@ async def update_wp_post(post_id, new_content):
         "date": current_time
     }
 
-    async with aiohttp.ClientSession(headers=headers) as session:
-        async with session.get(f"{config.WP_URL}/posts/{post_id}?context=edit") as resp:
-            
-            # Check if a redirect stripped our password!
-            if resp.history:
-                redirect_chain = " -> ".join([str(r.url) for r in resp.history] + [str(resp.url)])
-                return False, f"Redirect Trap Detected! The bot got redirected and lost its password: {redirect_chain}"
+    async with aiohttp.ClientSession(headers=wp_headers()) as session:
+        async with session.post(
+            url,
+            json=data,
+            auth=wp_auth(),
+            allow_redirects=False
+        ) as resp:
 
-            if resp.status != 200:
-                err_text = await resp.text()
-                return False, f"GET {resp.status}: {err_text[:250]}"
-            
-            return True, await resp.json()
+            text = await resp.text()
+
+            if resp.status in [301, 302, 307, 308]:
+                return False, f"Redirect error {resp.status}. Check WP_URL. URL used: {url}"
+
+            if resp.status not in [200, 201]:
+                return False, f"POST {resp.status}: {text[:500]}"
+
+            return True, "Success"
+
 
 async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
     success, post_data = await get_wp_post(post_id)
-    
+
     if not success:
-        return False, post_data # Passes the exact GET error up the chain
+        return False, post_data
 
     content = post_data.get("content", {}).get("raw", "")
 
     if not content:
-        return False, "Error: Missing 'raw' content. Check if your WP App Password has 'editor' permissions."
+        return False, "Post content.raw is empty."
 
     pattern = (pattern or "").strip().upper()
     episode_num = str(episode_num).strip()
@@ -107,19 +139,14 @@ async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
             return False, f"Error: Unknown pattern '{pattern}'. Use D1 or D2."
 
     success, update_msg = await update_wp_post(post_id, content)
-    
+
     if not success:
-        return False, update_msg # Passes the exact POST error up the chain
+        return False, update_msg
 
     return True, "Success"
 
 
 def find_episode_block(content, episode_num):
-    """
-    Finds the full Gutenberg columns block for a specific episode.
-    Supports EPISODE 7 and EPISODE 07 both.
-    """
-
     episode_digits = re.sub(r"\D", "", str(episode_num))
 
     if not episode_digits:
@@ -158,14 +185,6 @@ def find_episode_block(content, episode_num):
 
 
 def update_4k_button_in_block(block_html, link):
-    """
-    Updates the 4K Download button even if WordPress added extra attributes.
-    Works with:
-    <a class="...">4K Download</a>
-    <a class="..." href="">4K Download</a>
-    <a class="..." rel="nofollow">4K Download</a>
-    """
-
     anchor_regex = re.compile(
         r'<a\b(?P<attrs>[^>]*)>\s*4\s*K\s*Download\s*</a>',
         re.IGNORECASE
@@ -201,4 +220,3 @@ def update_4k_button_in_block(block_html, link):
     updated_block, count = anchor_regex.subn(replace_anchor, block_html, count=1)
 
     return updated_block, count
-
