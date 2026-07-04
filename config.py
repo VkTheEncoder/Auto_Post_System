@@ -10,5 +10,5 @@ FILE_BOT_USERNAME = "file_sharing_bot03_bot" # No @ symbol
 CHANNEL_USERNAME = "@Facky_Hindi_Donghua"
 WP_URL = "https://fackyhindidonghuas.in/wp-json/wp/v2"
 WP_USER = "facky@admin0578"
-WP_APP_PASS = "Du17iEjTdDuc83YX9l3sBDgz" # Your WP App Password
+WP_APP_PASS = "Du17 iEjT dDuc 83YX 9l3s BDgz" # Your WP App Password
 MONGO_URI = "mongodb+srv://filesharing:cPnK4QJKan0XiFsa@cluster0.wbmz6ma.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
