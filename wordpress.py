@@ -48,11 +48,18 @@ async def update_wp_post(post_id, new_content):
     }
 
     async with aiohttp.ClientSession(headers=headers) as session:
-        async with session.post(f"{config.WP_URL}/posts/{post_id}", json=data) as resp:
-            if resp.status not in [200, 201]:
+        async with session.get(f"{config.WP_URL}/posts/{post_id}?context=edit") as resp:
+            
+            # Check if a redirect stripped our password!
+            if resp.history:
+                redirect_chain = " -> ".join([str(r.url) for r in resp.history] + [str(resp.url)])
+                return False, f"Redirect Trap Detected! The bot got redirected and lost its password: {redirect_chain}"
+
+            if resp.status != 200:
                 err_text = await resp.text()
-                return False, f"POST {resp.status}: {err_text[:250]}"
-            return True, "Success"
+                return False, f"GET {resp.status}: {err_text[:250]}"
+            
+            return True, await resp.json()
 
 async def add_episode_to_wp(post_id, pattern, episode_num, link, is_4k=False):
     success, post_data = await get_wp_post(post_id)
