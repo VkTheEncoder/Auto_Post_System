@@ -2,6 +2,7 @@ import os
 import time
 import threading
 from flask import Flask
+from bot_handlers import wptest_command
 
 os.environ['TZ'] = 'UTC'
 if hasattr(time, 'tzset'):
@@ -61,6 +62,7 @@ def main():
 
     app.add_handler(CommandHandler("availablepost", availablepost))
     app.add_handler(CommandHandler("delpost", delpost))
+    app.add_handler(CommandHandler("wptest", wptest_command))
 
     app.add_handler(
         MessageHandler(
