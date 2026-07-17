@@ -836,3 +836,71 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending_files[file_name]["status_message_ids"].append(msg2.message_id)
 
         return
+
+
+async def wptest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update):
+        await reply_clean(update.message, "⛔ <b>Access Denied</b>")
+        return
+
+    import aiohttp
+    import config
+    from html import escape
+
+    post_id = context.args[0] if context.args else "7"
+
+    wp_url = str(config.WP_URL).rstrip("/")
+    wp_user = str(config.WP_USER).strip()
+    wp_pass = "".join(str(config.WP_APP_PASS).split())
+
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "AutoPostBot/1.0"
+    }
+
+    auth = aiohttp.BasicAuth(wp_user, wp_pass)
+
+    async with aiohttp.ClientSession(headers=headers) as session:
+        # 1. Test login
+        me_url = f"{wp_url}/users/me?context=edit"
+        async with session.get(me_url, auth=auth, allow_redirects=False) as resp:
+            me_status = resp.status
+            me_text = await resp.text()
+
+            try:
+                me_json = await resp.json(content_type=None)
+            except Exception:
+                me_json = {}
+
+        # 2. Test post raw content
+        post_url = f"{wp_url}/posts/{post_id}?context=edit"
+        async with session.get(post_url, auth=auth, allow_redirects=False) as resp:
+            post_status = resp.status
+            post_text = await resp.text()
+
+            try:
+                post_json = await resp.json(content_type=None)
+            except Exception:
+                post_json = {}
+
+    roles = me_json.get("roles", [])
+    user_name = me_json.get("name") or me_json.get("slug") or "Unknown"
+
+    has_raw = "raw" in post_json.get("content", {})
+    title = post_json.get("title", {}).get("raw") or post_json.get("title", {}).get("rendered") or "No title"
+
+    await reply_clean(
+        update.message,
+        f"🧪 <b>WordPress Render Test</b>\n\n"
+        f"🌐 <b>WP_URL:</b> <code>{escape(wp_url)}</code>\n"
+        f"👤 <b>WP_USER:</b> <code>{escape(wp_user)}</code>\n\n"
+        f"🔐 <b>Auth Test:</b> <code>{me_status}</code>\n"
+        f"👤 <b>Logged User:</b> <code>{escape(str(user_name))}</code>\n"
+        f"🛡️ <b>Roles:</b> <code>{escape(str(roles))}</code>\n\n"
+        f"📄 <b>Post Test:</b> <code>{post_status}</code>\n"
+        f"🆔 <b>Post ID:</b> <code>{escape(str(post_id))}</code>\n"
+        f"📝 <b>Title:</b> <code>{escape(str(title))[:150]}</code>\n"
+        f"📦 <b>Has content.raw:</b> <code>{has_raw}</code>\n\n"
+        f"🧾 <b>Post Response Preview:</b>\n"
+        f"<code>{escape(post_text[:500])}</code>"
+    )
