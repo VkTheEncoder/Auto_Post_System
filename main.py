@@ -90,6 +90,7 @@ def main():
     app.run_polling(drop_pending_updates=True)
 
 
-
+import requests
 if __name__ == "__main__":
+    print("Render Server IP:", requests.get("https://api.ipify.org").text)
     main()
