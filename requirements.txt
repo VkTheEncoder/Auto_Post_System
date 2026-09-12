@@ -3,3 +3,4 @@ motor
 aiohttp
 certifi
 flask
+requests
