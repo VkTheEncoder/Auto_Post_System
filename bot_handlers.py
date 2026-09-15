@@ -647,9 +647,16 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     sender_username = normalize_username(message.from_user.username if message.from_user else "")
+    from_file_bot = sender_username == get_file_bot_username()
+    from_file_log = is_file_log_chat(update)
 
-    # Case 1: Reply from Telegram file sharing bot
-    if sender_username == get_file_bot_username() or is_file_log_chat(update):
+    # Case 1: Reply from Telegram file sharing bot / its log channel
+    if from_file_bot or from_file_log:
+        # The log channel also receives links made manually with /link and
+        # /batch. Only consume entries explicitly created for Auto Post.
+        if from_file_log and "AUTOPOST_LINK" not in msg_text:
+            return
+
         link_match = re.search(r'((?:https?://)?(?:t\.me|telegram\.me)/[^\s<]+)', msg_text)
 
         if not link_match:
