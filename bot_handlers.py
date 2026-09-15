@@ -685,7 +685,12 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 selected_fname = fname
                 break
 
-        if not selected_fname and len(pending_files) == 1:
+        if (
+            not selected_fname
+            and len(pending_files) == 1
+            and from_file_bot
+            and not from_file_log
+        ):
             selected_fname = next(iter(pending_files))
 
         if not selected_fname:
