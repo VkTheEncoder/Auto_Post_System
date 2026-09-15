@@ -677,27 +677,31 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         selected_fname = None
-        lower_text = msg_text.lower()
+
+        # Inspect both the log message and the original message it replies to
+        replied_msg = message.reply_to_message
+        replied_text = (replied_msg.text or replied_msg.caption or "") if replied_msg else ""
+        if replied_msg and (replied_msg.document or replied_msg.video):
+            m = replied_msg.document or replied_msg.video
+            replied_text += " " + (getattr(m, "file_name", "") or "")
+
+        search_text = f"{msg_text} {replied_text}".lower()
 
         for fname, data in pending_files.items():
             clean_fname = remove_video_extension(fname).lower()
             full_fname = fname.lower()
             drive_text = data.get("drive_text", "").lower()
 
-            if clean_fname in lower_text or full_fname in lower_text:
+            if clean_fname in search_text or full_fname in search_text:
                 selected_fname = fname
                 break
 
-            if drive_text and clean_fname in drive_text and clean_fname in lower_text:
+            if drive_text and clean_fname in drive_text:
                 selected_fname = fname
                 break
 
-        if (
-            not selected_fname
-            and len(pending_files) == 1
-            and from_file_bot
-            and not from_file_log
-        ):
+        # Fallback: If 1 file is waiting and this is an AUTOPOST link, assign it directly
+        if not selected_fname and len(pending_files) == 1:
             selected_fname = next(iter(pending_files))
 
         if not selected_fname:
