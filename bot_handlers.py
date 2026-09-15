@@ -805,6 +805,9 @@ async def handle_bot_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 disable_web_page_preview=True
             )
 
+            # Give Telegram/File Sharing bot a brief moment to anchor the message
+            await asyncio.sleep(1)
+
             await context.bot.send_message(
                 chat_id=f"@{config.FILE_BOT_USERNAME}",
                 text="/link",
